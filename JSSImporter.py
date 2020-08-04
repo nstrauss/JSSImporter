@@ -46,7 +46,7 @@ from autopkglib import Processor, ProcessorError
 
 
 __all__ = ["JSSImporter"]
-__version__ = "1.1.1"
+__version__ = "1.1.0"
 REQUIRED_PYTHON_JSS_VERSION = StrictVersion("2.1.0")
 
 # Map Python 2 basestring type for Python 3.
@@ -371,8 +371,7 @@ class JSSImporter(Processor):
                     self.output(
                         "{} ID '{}' verified on server".format(
                             obj_cls.__name__, object.id
-                        ),
-                        verbose_level=2,
+                        )
                     )
                     self.upload_needed = True
                     return object
@@ -380,16 +379,14 @@ class JSSImporter(Processor):
                     self.output(
                         "Waiting to get {} ID from server (reported: {})...".format(
                             obj_cls.__name__, object.id
-                        ),
-                        verbose_level=2,
+                        )
                     )
                     time.sleep(10)
             except jss.GetError:
                 self.output(
                     "Waiting to get {} ID from server (none reported)...".format(
                         obj_cls.__name__
-                    ),
-                    verbose_level=2,
+                    )
                 )
                 time.sleep(10)
 
@@ -404,8 +401,7 @@ class JSSImporter(Processor):
                 category_name = category.name
                 self.output(
                     "Category, type '{}', name '{}', already exists on the Jamf Pro server, "
-                    "moving on...".format(category_type, category_name),
-                    verbose_level=2,
+                    "moving on...".format(category_type, category_name)
                 )
             except jss.GetError:
                 # Category doesn't exist
@@ -445,18 +441,10 @@ class JSSImporter(Processor):
         """
         # Skip package handling if there is no package or repos.
         pkg_path = self.env["pkg_path"]
-        if self.repo_type() is None:
+        if self.repo_type() is None or pkg_path == "":
             self.output(
-                "No repos are setup so JSSImporter cannot upload packages. "
-                "If this is a mistake, check your JSS_REPOS array.",
-                verbose_level=2,
-            )
-            return
-        if pkg_path == "":
-            self.output(
-                "No 'pkg_path' key has been passed to the JSSImporter processor. "
-                "Therefore, no package will be uploaded. ",
-                verbose_level=2,
+                "Package upload and object update skipped. If this is "
+                "a mistake, ensure you have JSS_REPOS configured."
             )
             return
 
@@ -479,9 +467,9 @@ class JSSImporter(Processor):
         # now check if the package object already exists
         try:
             package = self.jss.Package(self.pkg_name)
-            self.output("Package object already exists on the Jamf Pro server.")
             self.output(
-                "Package ID: {}".format(package.id), verbose_level=2,
+                "Package object already exists on the Jamf Pro server. "
+                "(ID: {})".format(package.id)
             )
             pkg_update = self.env["jss_changed_objects"]["jss_package_updated"]
             # for cloud DPs we must assume that the package object means there is an associated package
@@ -544,18 +532,21 @@ class JSSImporter(Processor):
                 self.upload_needed = True
 
         # only update the package object if an uploand ad was carried out
-        self.stop_if_no_upload = "{}".format(self.env.get("STOP_IF_NO_JSS_UPLOAD"))
-        if self.stop_if_no_upload != "False" and not self.upload_needed:
+        if self.env["STOP_IF_NO_JSS_UPLOAD"] is True and not self.upload_needed:
             self.output(
-                "Not overwriting policy as upload requirement is determined as False, "
-                "and STOP_IF_NO_JSS_UPLOAD is not set to False."
+                "Not overwriting policy as upload requirement is determined as {} "
+                "and STOP_IF_NO_JSS_UPLOAD is set to {}.".format(
+                    self.upload_needed, self.env["STOP_IF_NO_JSS_UPLOAD"]
+                )
             )
             self.env["stop_processing_recipe"] = True
             return
-        elif not self.upload_needed:
+        elif self.env["STOP_IF_NO_JSS_UPLOAD"] is False and not self.upload_needed:
             self.output(
-                "Overwriting policy although upload requirement is determined as False, "
-                "because STOP_IF_NO_JSS_UPLOAD is set to False."
+                "Overwriting policy although upload requirement is determined as {} "
+                "because STOP_IF_NO_JSS_UPLOAD is set to {}.".format(
+                    self.upload_needed, self.env["STOP_IF_NO_JSS_UPLOAD"]
+                )
             )
 
         # now update the package object
@@ -636,10 +627,7 @@ class JSSImporter(Processor):
         computer_groups = []
         if groups:
             for group in groups:
-                self.output(
-                    "Computer Group to process: {}".format(group["name"]),
-                    verbose_level=3,
-                )
+                # self.output("Computer Group to process: {}".format(group["name"]))
                 if self.validate_input_var(group):
                     is_smart = group.get("smart", False)
                     if is_smart:
@@ -657,10 +645,7 @@ class JSSImporter(Processor):
         results = []
         if scripts:
             for script in scripts:
-                self.output(
-                    "Looking for Script file {}...".format(script["name"]),
-                    verbose_level=2,
-                )
+                self.output("Looking for Script file {}...".format(script["name"]))
                 script_file = self.find_file_in_search_path(script["name"])
                 try:
                     with open(script_file) as script_handle:
@@ -693,9 +678,7 @@ class JSSImporter(Processor):
                 update_env="jss_policy_updated",
                 added_env="jss_policy_added",
             )
-            self.output(
-                "Policy object: {}".format(policy.id), verbose_level=3,
-            )
+            # self.output("PolicyPackage object: {}".format(policy.id))
         else:
             self.output("Policy creation not desired, moving on...")
             policy = None
@@ -720,9 +703,7 @@ class JSSImporter(Processor):
         if self.env.get("self_service_icon") and self.policy is not None:
             # Search through search-paths for icon file.
             self.output(
-                "Looking for Icon file {}...".format(
-                    self.env["self_service_icon"], verbose_level=2,
-                )
+                "Looking for Icon file {}...".format(self.env["self_service_icon"])
             )
             icon_path = self.find_file_in_search_path(self.env["self_service_icon"])
             icon_filename = os.path.basename(icon_path)
@@ -734,10 +715,7 @@ class JSSImporter(Processor):
                 "self_service/self_service_icon/filename"
             )
             if not policy_filename == icon_filename:
-                self.output(
-                    "Icon name in existing policy: {}".format(policy_filename),
-                    verbose_level=2,
-                )
+                self.output("Icon name in existing policy: {}".format(policy_filename))
                 icon = jss.FileUpload(
                     self.jss, "policies", "id", self.policy.id, icon_path
                 )
@@ -988,7 +966,7 @@ class JSSImporter(Processor):
         """
         self.output(
             "Looking for {} template file {}...".format(
-                obj_cls.__name__, os.path.basename(template_path), verbose_level=2,
+                obj_cls.__name__, os.path.basename(template_path)
             )
         )
         final_template_path = self.find_file_in_search_path(template_path)
@@ -1063,9 +1041,7 @@ class JSSImporter(Processor):
             tested.append(test_parent_folder_path)
 
             if final_path:
-                self.output(
-                    "Found file: {}".format(final_path), verbose_level=2,
-                )
+                self.output("Found file: {}".format(final_path))
                 break
 
         if not final_path:
@@ -1135,13 +1111,13 @@ class JSSImporter(Processor):
             try:
                 computer_group = self.jss.ComputerGroup(group["name"])
                 self.output(
-                    "Computer Group '%s' already exists "
+                    "ComputerGroup '%s' already exists "
                     "and set not to update." % computer_group.name
                 )
                 return computer_group
             except jss.GetError:
                 self.output(
-                    "Computer Group '%s' does not already exist. "
+                    "ComputerGroup '%s' does not already exist. "
                     "Creating from template." % group["name"]
                 )
 
@@ -1159,14 +1135,12 @@ class JSSImporter(Processor):
         try:
             computer_group = self.jss.ComputerGroup(group["name"])
             self.output(
-                "Static Computer Group: {} already exists.".format(computer_group.name)
+                "Computer Group: {} already exists.".format(computer_group.name)
             )
         except jss.GetError:
             computer_group = jss.ComputerGroup(self.jss, group["name"])
             computer_group.save()
-            self.output(
-                "Static Computer Group '{}' created.".format(computer_group.name)
-            )
+            self.output("Computer Group '{}' created.".format(computer_group.name))
             self.env["jss_changed_objects"]["jss_group_added"].append(
                 computer_group.name
             )
@@ -1199,7 +1173,7 @@ class JSSImporter(Processor):
         if self.package is not None:
             self.ensure_xml_structure(policy_template, "package_configuration/packages")
             action_type = self.env["policy_action_type"]
-            self.output("Setting policy to '{}' package.".format(action_type))
+            self.output("Setting policy to '%s' package." % action_type)
             policy_template.add_package(self.package, action_type=action_type)
 
     def add_icon_to_policy(self, policy_template, icon_xml):
@@ -1304,9 +1278,7 @@ class JSSImporter(Processor):
         """Main processor code."""
         # Ensure we have the right version of python-jss
         python_jss_version = StrictVersion(PYTHON_JSS_VERSION)
-        self.output(
-            "python-jss version: {}.".format(python_jss_version), verbose_level=2,
-        )
+        self.output("python-jss version: {}.".format(python_jss_version))
         if python_jss_version < REQUIRED_PYTHON_JSS_VERSION:
             self.output(
                 "python-jss version is too old. Please update to version: {}.".format(
@@ -1315,18 +1287,14 @@ class JSSImporter(Processor):
             )
             raise ProcessorError
 
-        self.output(
-            "JSSImporter version: {}.".format(__version__), verbose_level=2,
-        )
+        self.output("JSSImporter version: {}.".format(__version__))
 
         # clear any pre-existing summary result
         if "jss_importer_summary_result" in self.env:
             del self.env["jss_importer_summary_result"]
 
         self.create_jss()
-        self.output(
-            "Jamf Pro version: '{}'".format(self.jss.version()), verbose_level=2,
-        )
+        self.output("Jamf Pro version: '{}'".format(self.jss.version()))
 
         self.pkg_name = os.path.basename(self.env["pkg_path"])
         self.prod_name = self.env["prod_name"]
@@ -1336,8 +1304,7 @@ class JSSImporter(Processor):
                 "Warning: No `version` was added to the AutoPkg env up to "
                 "this point. JSSImporter is defaulting to version {}!".format(
                     self.version
-                ),
-                verbose_level=2,
+                )
             )
 
         # Build and init jss_changed_objects
@@ -1350,9 +1317,7 @@ class JSSImporter(Processor):
         if len(self.jss.distribution_points) == 0:
             self.output("Warning: No distribution points configured!")
         for dp in self.jss.distribution_points:
-            self.output(
-                "Checking if DP already mounted...", verbose_level=2,
-            )
+            self.output("Checking if DP already mounted...")
             dp.was_mounted = hasattr(dp, "is_mounted") and dp.is_mounted()
         # Don't bother mounting the DPs if there's no package.
         if self.env["pkg_path"]:
@@ -1361,13 +1326,13 @@ class JSSImporter(Processor):
         self.package = self.handle_package()
 
         # stop if no package was uploaded and STOP_IF_NO_JSS_UPLOAD is True
-        if self.stop_if_no_upload and not self.upload_needed:
+        if self.env["pkg_path"] == "":
+            pass
+        elif self.env["STOP_IF_NO_JSS_UPLOAD"] is True and not self.upload_needed:
             # Done with DPs, unmount them.
             for dp in self.jss.distribution_points:
-                if not dp.was_mounted:
-                    self.output(
-                        "Unmounting DP...", verbose_level=2,
-                    )
+                if not dp.was_mounted and self.repo_type() != "Local":
+                    self.output("Unmounting DP...")
                     self.jss.distribution_points.umount()
             self.summarize()
             return
@@ -1386,7 +1351,8 @@ class JSSImporter(Processor):
 
         # Done with DPs, unmount them.
         for dp in self.jss.distribution_points:
-            if not dp.was_mounted:
+            if not dp.was_mounted and self.repo_type() != "Local":
+                self.output("Unmounting DP...")
                 self.jss.distribution_points.umount()
         self.summarize()
 
