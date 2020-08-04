@@ -1326,11 +1326,13 @@ class JSSImporter(Processor):
         self.package = self.handle_package()
 
         # stop if no package was uploaded and STOP_IF_NO_JSS_UPLOAD is True
+        # NS 8/3/20 - When passing an empty pkg_path keep going
         if self.env["pkg_path"] == "":
             pass
         elif self.env["STOP_IF_NO_JSS_UPLOAD"] is True and not self.upload_needed:
             # Done with DPs, unmount them.
             for dp in self.jss.distribution_points:
+                # Don't attempt to unmount DPs if local
                 if not dp.was_mounted and self.repo_type() != "Local":
                     self.output("Unmounting DP...")
                     self.jss.distribution_points.umount()
@@ -1352,6 +1354,7 @@ class JSSImporter(Processor):
         # Done with DPs, unmount them.
         for dp in self.jss.distribution_points:
             if not dp.was_mounted and self.repo_type() != "Local":
+                # Don't attempt to unmount DPs i local
                 self.output("Unmounting DP...")
                 self.jss.distribution_points.umount()
         self.summarize()
